@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type KPMD int
@@ -21,11 +22,18 @@ func (t *KPMD) Run(args []string, reply *int) error {
 		reply = &repl
 		return err
 	}
+	println(strings.Join(args, " "))
 	workdir := args[len(args)-1]
+	var arg []string
+	if len(args) > 2 {
+		arg = args[1 : len(args)-1]
+	} else {
+		arg = []string{}
+	}
 	process := Process{
 		Id:         len(processes),
-		File:       args[1],
-		Args:       args[2 : len(args)-1],
+		File:       args[0],
+		Args:       arg,
 		Logger:     log.New(logFile, strconv.Itoa(len(processes))+"|\t", 0),
 		WorkingDir: workdir,
 	}
@@ -37,6 +45,7 @@ func (t *KPMD) Run(args []string, reply *int) error {
 
 func (t *KPMD) Stop(args []string, reply *int) error {
 	id, _ := strconv.Atoi(args[0])
+	println(args[0])
 	for _, process := range processes {
 		if process.Id == id {
 			process.stop()
@@ -73,9 +82,32 @@ func (t *KPMD) List(args string, reply *[]ProcessInfo) error {
 			Pid:   process.Pid,
 			File:  process.File,
 			State: process.State,
+			Args:  process.Args,
 		})
 	}
 	*reply = procs
+	return nil
+}
+
+func (t *KPMD) Stdin(args []string, reply *int) error {
+	id, _ := strconv.Atoi(args[0])
+	for _, process := range processes {
+		if process.Id == id {
+			println(strings.Join(args[1:], " "))
+			process.stdin(strings.Join(args[1:], " ") + "\n")
+		}
+	}
+	return nil
+}
+
+func (t *KPMD) StdOut(args string, reply *string) error {
+	id, _ := strconv.Atoi(args)
+	for _, process := range processes {
+		if process.Id == id {
+			s := <-process.out
+			*reply = s
+		}
+	}
 	return nil
 }
 

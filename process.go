@@ -17,6 +17,8 @@ type Process struct {
 	Cmd         *exec.Cmd
 	Logger      *log.Logger
 	WorkingDir  string
+	Stdin       *io.Writer
+	out         chan string
 }
 
 func (p *Process) start() {
@@ -26,15 +28,19 @@ func (p *Process) start() {
 	if cmd == nil {
 		fmt.Println("cmd is nil, WTF")
 	}
-	stdout, stderr := p.getPipes()
+	stdout, stderr, stdin := p.getPipes()
+	p.Stdin = &stdin
 	err := cmd.Start()
+	p.Pid = cmd.Process.Pid
 	if err != nil {
 		p.Logger.Printf("%s", p.Id, err)
 		return
 	}
 	p.State = "running"
-	go p.watchPipe(stdout)
-	go p.watchPipe(stderr)
+
+	p.out = make(chan string, 10)
+	go p.watchPipe(stdout, p.out)
+	go p.watchPipe(stderr, p.out)
 
 }
 
@@ -60,26 +66,41 @@ func (p *Process) kill() {
 	p.State = "killed"
 }
 
-func (p *Process) getPipes() (io.Reader, io.Reader) {
+func (p *Process) getPipes() (io.Reader, io.Reader, io.Writer) {
 	fmt.Println("watchProcess")
 	stdout, err := p.Cmd.StdoutPipe()
 	if err != nil {
 		p.Logger.Println(err.Error())
-		return nil, nil
+		return nil, nil, nil
 	}
 	stderr, err := p.Cmd.StderrPipe()
 	if err != nil {
 		p.Logger.Println(err.Error())
-		return nil, nil
+		return nil, nil, nil
 	}
-	return stdout, stderr
+	stdin, err := p.Cmd.StdinPipe()
+	if err != nil {
+		p.Logger.Println(err.Error())
+		return nil, nil, nil
+	}
+	return stdout, stderr, stdin
 
 }
 
-func (p *Process) watchPipe(pipe io.Reader) {
+func (p *Process) watchPipe(pipe io.Reader, c *chan string) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
-		p.Logger.Print(scanner.Text())
+		text := scanner.Text()
+		p.Logger.Print(text)
+		if len(*c) > 10 {
+			*c = make(chan string, 10)
+		}
+		*c <- text
 	}
 	p.State = "exited"
+}
+
+func (p Process) stdin(input string) {
+	println("writing to stdin: " + input)
+	(*p.Stdin).Write([]byte(input))
 }

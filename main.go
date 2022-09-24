@@ -22,32 +22,3 @@ func main() {
 	}
 	http.Serve(l, nil)
 }
-
-/*
-func runProcess(name string, args []string) error {
-	cmd := exec.Command(name, args...)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-	go watchProcess(stdout, cmd)
-	cmd.Start()
-	return nil
-}
-
-func watchProcess(stdout io.Reader, cmd *exec.Cmd) {
-	for {
-		buffer := make([]byte, 16)
-		_, err := stdout.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				log.Println("Process finished")
-			} else {
-				log.Fatal(err)
-			}
-			break
-		}
-		print(string(buffer))
-	}
-}
-*/
